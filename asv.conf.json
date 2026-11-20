@@ -1,0 +1,13 @@
+{
+    "version": 1,
+    "project": "ctapipe",
+    "project_url": "https://github.com/cta-observatory/ctapipe",
+    "repo": "https://github.com/cta-observatory/ctapipe.git",
+    "branches": ["main"],
+    "show_commit_url": "https://github.com/cta-observatory/ctapipe/commit/",
+    "environment_type": "virtualenv",
+    "pythons": ["3.12", "3.13", "3.14"],
+    "build_command": [
+        "python -m pip wheel --no-deps --wheel-dir {build_cache_dir} {build_dir}"
+    ]
+}
