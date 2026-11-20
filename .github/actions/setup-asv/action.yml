@@ -1,0 +1,35 @@
+name: Set up ctapipe benchmarks
+description: Install the ASV suite and configure it to use a sibling ctapipe checkout
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      with:
+        version: "0.13.8"
+        python-version: "3.12"
+        cache-dependency-glob: ctapipe-asv/uv.lock
+
+    - name: Sync the benchmark suite
+      shell: bash
+      working-directory: ctapipe-asv
+      run: uv sync --locked
+
+    - name: Install benchmark interpreters and configure ASV
+      shell: bash
+      working-directory: ctapipe-asv
+      env:
+        UV_PYTHON_BIN_DIR: ${{ runner.temp }}/ctapipe-asv-python
+      run: |
+        uv run --no-sync python - <<'PY'
+        import json
+        import subprocess
+        from pathlib import Path
+
+        config = json.loads(Path("asv.conf.json").read_text())
+        subprocess.run(["uv", "python", "install", *config["pythons"]], check=True)
+        config["repo"] = "../ctapipe"
+        Path("asv.conf.local.json").write_text(json.dumps(config))
+        PY
+        printf '%s\n' "$UV_PYTHON_BIN_DIR" >> "$GITHUB_PATH"
+        git rev-parse HEAD

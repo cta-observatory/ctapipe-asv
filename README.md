@@ -30,3 +30,27 @@ The Hillas benchmark reports the time to process a batch of 500 images from
 Image generation, cleaning with the default `TailcutsImageCleaner`, and
 preparing the matching telescope-frame geometry all run during setup, outside
 the timed method. Images with no surviving pixels are replaced during setup.
+
+## Nightly results and dashboard
+
+The **Benchmark ctapipe main** workflow runs at 02:23 UTC each night and can
+also be started manually on this repository's `main` branch. It benchmarks
+ctapipe's `main`, creates the `results` branch on the first successful run, and
+uses that branch to preserve the raw ASV JSON across runs.
+
+Set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**
+in this repository to enable dashboard deployment. The deployment job reports
+the site URL. Nightly benchmarks run on GitHub-hosted Ubuntu 24.04 runners,
+where hardware and timing can vary between runs.
+
+To compare two nightly measurements from a fresh suite checkout, install the
+interpreters and sync the environment as above, then run these commands.
+
+```sh
+git fetch origin results
+git archive FETCH_HEAD results | tar -x
+uv run --no-sync asv compare --split OLD_SHA NEW_SHA
+```
+
+If the archive contains measurements from multiple runners, add
+`--machine MACHINE` to select a runner that measured both commits.

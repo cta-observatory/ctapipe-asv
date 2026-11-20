@@ -1,0 +1,123 @@
+name: Benchmark ctapipe main
+
+on:
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-nightly
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ASV_MACHINE: github-ubuntu-24.04
+      MKL_NUM_THREADS: 1
+      NUMBA_NUM_THREADS: 1
+      OMP_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: ctapipe-asv
+
+      - uses: actions/checkout@v7
+        with:
+          repository: cta-observatory/ctapipe
+          ref: main
+          path: ctapipe
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./ctapipe-asv/.github/actions/setup-asv
+
+      - name: Restore benchmark history
+        shell: bash
+        working-directory: ctapipe-asv
+        run: |
+          if git ls-remote --exit-code origin refs/heads/results; then
+            git fetch --no-tags origin refs/heads/results
+            git archive FETCH_HEAD results | tar -x
+          elif [[ $? -ne 2 ]]; then
+            exit 1
+          fi
+
+      - name: Benchmark ctapipe and generate the dashboard
+        working-directory: ctapipe-asv
+        run: |
+          ctapipe_sha=$(git -C ../ctapipe rev-parse HEAD)
+          uv run --no-sync asv machine --yes --machine "$ASV_MACHINE" --os "$RUNNER_OS" --arch "$RUNNER_ARCH"
+          uv run --no-sync asv run --config asv.conf.local.json --machine "$ASV_MACHINE" --show-stderr "$ctapipe_sha^!"
+          uv run --no-sync asv publish --config asv.conf.local.json
+          printf 'Benchmarked ctapipe `%s` with suite `%s`.\n' \
+            "$ctapipe_sha" "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload raw benchmark results
+        uses: actions/upload-artifact@v7
+        with:
+          name: asv-nightly-results
+          path: ctapipe-asv/results/
+          if-no-files-found: error
+
+      - name: Upload the dashboard for GitHub Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ctapipe-asv/html/
+
+  archive:
+    needs: benchmark
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: asv-nightly-results
+          path: ${{ runner.temp }}/asv-results
+
+      - name: Commit benchmark results
+        shell: bash
+        run: |
+          if git ls-remote --exit-code origin refs/heads/results; then
+            git fetch --no-tags origin refs/heads/results
+            git switch --detach FETCH_HEAD
+          elif [[ $? -eq 2 ]]; then
+            git switch --orphan results
+          else
+            exit 1
+          fi
+
+          mkdir -p results
+          cp -a "$RUNNER_TEMP/asv-results/." results/
+          git add --force results/
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "Archive ASV results from run $GITHUB_RUN_ID"
+          git push origin HEAD:refs/heads/results
+
+  deploy:
+    needs: archive
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - name: Deploy the ASV dashboard
+        id: pages
+        uses: actions/deploy-pages@v4
