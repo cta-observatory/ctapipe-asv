@@ -21,6 +21,7 @@ class HillasParameters:
         focal_length = 12 * u.m
         geometry = CameraGeometry.make_rectangular(npix_x=40, npix_y=40)
         geometry.frame = CameraFrame(focal_length=focal_length)
+        telescope_geometry = geometry.transform_to(TelescopeFrame())
 
         optics = OpticsDescription(
             name="ToyOptics",
