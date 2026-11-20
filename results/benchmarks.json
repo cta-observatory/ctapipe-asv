@@ -1,0 +1,18 @@
+{
+    "hillas.HillasParameters.time_hillas_parameters": {
+        "code": "class HillasParameters:\n    def time_hillas_parameters(self):\n        for geometry, image in self.cleaned_images:\n            hillas_parameters(geometry, image)\n\n    def setup(self):\n        focal_length = 12 * u.m\n        geometry = CameraGeometry.make_rectangular(npix_x=40, npix_y=40)\n        geometry.frame = CameraFrame(focal_length=focal_length)\n        telescope_geometry = geometry.transform_to(TelescopeFrame())\n    \n        optics = OpticsDescription(\n            name=\"ToyOptics\",\n            size_type=SizeType.MST,\n            n_mirrors=1,\n            equivalent_focal_length=focal_length,\n            effective_focal_length=focal_length,\n            mirror_area=100 * u.m**2,\n            n_mirror_tiles=1,\n            reflector_shape=ReflectorShape.PARABOLIC,\n        )\n        camera = CameraDescription(geometry.name, geometry, readout=None)\n        telescope = TelescopeDescription(\"ToyTelescope\", optics, camera)\n        subarray = SubarrayDescription(\n            \"ToySubarray\",\n            tel_positions={1: [0, 0, 0] * u.m},\n            tel_descriptions={1: telescope},\n            reference_location=EarthLocation.from_geodetic(0 * u.deg, 0 * u.deg),\n        )\n    \n        n_images = 500\n        source = ToyEventSource(\n            subarray=subarray,\n            max_events=2 * n_images,\n            trigger_probability=1.0,\n            rng=np.random.default_rng(0),\n        )\n        cleaner = TailcutsImageCleaner(subarray=subarray)\n        self.cleaned_images = []\n        for event in source:\n            image = event.tel[1].dl1.image\n            mask = cleaner(1, image)\n            if mask.any():\n                self.cleaned_images.append((telescope_geometry[mask], image[mask]))\n            if len(self.cleaned_images) == n_images:\n                break\n    \n        else:\n            raise RuntimeError(f\"Could not generate {n_images} usable toy images\")",
+        "min_run_count": 2,
+        "name": "hillas.HillasParameters.time_hillas_parameters",
+        "number": 0,
+        "param_names": [],
+        "params": [],
+        "repeat": 0,
+        "rounds": 2,
+        "sample_time": 0.01,
+        "type": "time",
+        "unit": "seconds",
+        "version": "b4b70933e109f243dc35983b0fbfdd3a9f8dd4bf78a5323213334e019927d0a2",
+        "warmup_time": -1
+    },
+    "version": 2
+}
